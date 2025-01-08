@@ -30,8 +30,6 @@ extern exit
 %define DWORD                4
 %define WORD                 2
 %define BYTE                 1
-%define width                400
-%define height               400
 
 global main
 
@@ -48,8 +46,9 @@ distance_min:   resd 1
 distance_min_id:resd 1
 nb_points:      resd 1
 nb_foyers:      resd 1
-tableau_x_foyers: resd 400
-tableau_y_foyers: resd 400
+tableau_x_foyers: resd 800
+tableau_y_foyers: resd 800
+tableau_color_foyers: resd 800
 drawing_done:   resb 1 ; Flag to indicate if drawing is done
 
 
@@ -61,9 +60,9 @@ affichage_ligne db " ligne de %d;%d a %d;%d ", 10 , 0
 affichage_indice db "Indice : %d", 10, 0 ; Format string for printf
 affichage_indice_point db "Indice_pts : %d", 10, 0 ; Format string for printf
 affichage_distance db "Distance : %d", 10, 0 ; Format string for printf
+affichage_distance_min db "Distance min : %d", 10, 0 ; Format string for printf
 affichage_x db "x : %d", 10, 0 ; Format string for printf
 affichage_y db "y : %d", 10, 0 ; Format string for printf
-affichage_distance_min db "Distance_min : %d", 10, 0 ; Format string for printf
 error_message db "Erreur : indice hors limites ou accès invalide.", 0xA, 0  ; Message d'erreur avec saut de ligne
 dubug_print_2 db "BEGIN GENERATION OF FOYERS", 10 , 0
 dubug_print_3 db "END GENERATION OF FOYERS", 10 , 0
@@ -74,10 +73,15 @@ nl db 10, 0 ; Newline character
 separator db "--------------------------------", 10, 0 ; Separator for debug messages
 event:          times 24 dq 0
 
+width          dd 800
+height         dd 800
+
 x1:             dd 0
 x2:             dd 0
 y1:             dd 0
 y2:             dd 0
+colors         dd 0x0ebeff, 0x29b0f7, 0x44a2ee, 0x5f94e5, 0x7a86dc, 0x9578d3, 0xb06ac9, 0xcb5cb0, 0xe64e97, 0xff4080
+nb_colors      dd 10
 
 section .text
 
@@ -87,50 +91,51 @@ section .text
 
 main:
     mov     byte [drawing_done], 0
-    mov     rdi, 0
+    mov     rdi,0
     xor     rax, rax
 
-    mov     qword[display_name], rax ; rax = display name
+    mov     qword[display_name],rax	; rax=nom du display
 
-    call    XOpenDisplay             ; Create display
+    call    XOpenDisplay	; Création de display
+
 
     ; display_name structure
     ; screen = DefaultScreen(display_name);
-    mov     [display_name], rax
-    mov     eax, dword[rax + 0xe0]
-    mov     dword[screen], eax
+    mov     [display_name],rax
+    mov     eax,dword[rax+0xe0]
+    mov     dword[screen],eax
 
-    mov     rdi, qword[display_name]
-    mov     esi, dword[screen]
-    call    XRootWindow
-    mov     rbx, rax
+    mov rdi,qword[display_name]
+    mov esi,dword[screen]
+    call XRootWindow
+    mov rbx,rax
 
-    mov     rdi, qword[display_name]
-    mov     rsi, rbx
-    mov     rdx, 10
-    mov     rcx, 10
-    mov     r14, width ; width
-    mov     r15, height ; height
-    push    0xFFFFFF ; background (0xRRGGBB)
-    push    0x00FF00
-    push    1
-    call    XCreateSimpleWindow
-    mov     qword[window], rax
+    mov rdi,qword[display_name]
+    mov rsi,rbx
+    mov rdx,10
+    mov rcx,10
+    mov r8,[width]	; largeur
+    mov r9,[height]	; hauteur
+    push 0xFFFFFF	; background  0xRRGGBB
+    push 0x00FF00
+    push 1
+    call XCreateSimpleWindow
+    mov qword[window],rax
 
-    mov     rdi, qword[display_name]
-    mov     rsi, qword[window]
-    mov     rdx, 131077 ; 131072
-    call    XSelectInput
+    mov rdi,qword[display_name]
+    mov rsi,qword[window]
+    mov rdx,131077 ;131072
+    call XSelectInput
 
-    mov     rdi, qword[display_name]
-    mov     rsi, qword[window]
-    call    XMapWindow
+    mov rdi,qword[display_name]
+    mov rsi,qword[window]
+    call XMapWindow
 
-    mov     rsi, qword[window]
-    mov     rdx, 0
-    mov     rcx, 0
-    call    XCreateGC
-    mov     qword[gc], rax
+    mov rsi,qword[window]
+    mov rdx,0
+    mov rcx,0
+    call XCreateGC
+    mov qword[gc],rax
 
 
 boucle: ; Event handling loop
@@ -160,7 +165,7 @@ foyers:
 
 
     ; Sauvegarder le nombre aléatoire
-    mov dword [nb_foyers], 400
+    mov dword [nb_foyers], 80
     ; Afficher le nombre de foyers dans le terminal
     mov rdi, nb_foyers_str  
     mov rsi, [nb_foyers] 
@@ -184,9 +189,10 @@ foyers:
 
         ; Lire l'horodatage avec RDTSC
         rdtsc
+        call int_sqrt
         ; r12 contient la partie basse de l'horodatage
         ; Prendre le reste de la division par 401 pour limiter à [0, 400]
-        mov ecx, 401
+        mov ecx, [width]
         xor edx, edx      ; EDX est à 0 pour div
         div ecx           ; r12 / ECX -> Quotient dans r12, reste dans EDX
         mov r12d, edx      ; Le résultat (reste) est dans r12
@@ -206,7 +212,7 @@ foyers:
         rdtsc
         ; r12 contient la partie basse de l'horodatage
         ; Prendre le reste de la division par 401 pour limiter à [0, 400]
-        mov ecx, 401
+        mov ecx, [height]
         xor edx, edx      ; EDX est à 0 pour div
         div ecx           ; r12 / ECX -> Quotient dans r12, reste dans EDX
         mov r12d, edx      ; Le résultat (reste) est dans r12
@@ -224,6 +230,18 @@ foyers:
         mov rdi, nl
         call printf
         xor eax, eax
+
+        ;generer une couleur aleatoire
+        ;choisir un nombre entre 0 et nb_colors-1
+        mov r12, 0xFFFFFF
+        rdtsc
+        xor rdx, rdx
+        div r12
+        mov r12, rdx
+
+        ;sauvegarder la couleur
+        mov [tableau_color_foyers + r14 * 4], r12d
+        
 
 
         mov rdi, nl
@@ -253,265 +271,98 @@ foyers:
 ;# BEGIN DRAWING ZONE                    #
 ;#########################################
 
+    xor r13, r13 ; r13 est à 0 il servira de compteur pour les foyers
+    xor r14, r14 ; r14 est à 0 il servira de compteur pour x
+    xor r15, r15 ; r15 est à 0 il servira de compteur pour y
+    boucle_x:
+        xor r15, r15 ; r15 est à 0 il servira de compteur pour y
 
-    xor r14, r14
+        boucle_y:   
+            xor r13, r13 ; r13 est à 0 il servira de compteur pour les foyers
+            mov dword [distance_min], 0xffffff
 
-    jmp boucle_points
+            boucle_foyers_enum:
 
-; generation aléatoire de 10000 points
-; pas besoin de sauvegarder les points il seron traités un à un
-; r14 a 0 il servira de compteur
+                ; énumérer les foyers
+                ; sauvegarder les coordonnées du foyer le plus proche du point r14, r15
+                ; sauvegarder la distance entre le point r14, r15 et le foyer le plus proche
 
-boucle_points:
-    ;separation
+                ; calcul de la distance entre le point et le foyer
+                ; calcul de la distance en x
+                mov r12, [tableau_x_foyers + r13 * 4]
+                sub r12, r14
+                imul r12, r12
+                mov ecx, r12d
 
+                ; calcul de la distance en y
+                mov r12, [tableau_y_foyers + r13 * 4]
+                sub r12, r15
+                imul r12, r12
+                add ecx, r12d
 
-    mov rdi, separator
-    xor eax, eax
-    call printf
+                ; calcul de la distance totale
+                mov r12d, ecx
+                call int_sqrt
 
+                ; si r12d est inférieur à distance_min, on sauvegarde la distance et l'identifiant du foyer
 
 
+                cmp r12d,[distance_min]
+                jl sauvegarde_distance
+                suit_boucle_foyers_enum:
 
-    ;affichage_indice_point
-    mov rdi, affichage_indice_point
-    mov rsi, r14
-    xor eax, eax
-    call printf
-    
 
+                inc r13
+                cmp r13d, [nb_foyers]
+                jl boucle_foyers_enum
 
 
-    ; generation de x pour le point
-    ; Lire l'horodatage avec RDTSC
-    rdtsc
-    ; r12 contient la partie basse de l'horodatage
-    ; Prendre le reste de la division par 401 pour limiter à [0, 400]
-    mov ecx, 401
-    xor edx, edx      ; EDX est à 0 pour div
-    div ecx           ; r12 / ECX -> Quotient dans r12, reste dans EDX
-    mov r12d, edx      ; Le résultat (reste) est dans r12
+                ;couleur du point
+                xor r13, r13
+                mov r13d ,[distance_min_id]
 
-    ; Sauvegarder le nombre aléatoire dans x1
-    mov [x1], r12d
+                mov rdi,qword[display_name]
+                mov rsi,qword[gc]
+                mov edx,[tableau_color_foyers + r13d * 4]
+                call XSetForeground
+                mov rdi,qword[display_name]
+                mov rsi,qword[window]
+                mov rdx,qword[gc]
+                mov rcx,r15	; coordonnée en x
+                mov r8,r14	; coordonnée en y
+                call XDrawPoint
 
-    ;affichage_x
-    mov rdi, affichage_x
-    mov rsi, r12
-    xor eax, eax
-    call printf
+                
 
 
 
-    ; generation de y pour le point
-    ; Lire l'horodatage avec RDTSC
-    rdtsc
-    ; r12 contient la partie basse de l'horodatage
-    ; Prendre le reste de la division par 401 pour limiter à [0, 400]
-    mov ecx, 401
-    xor edx, edx      ; EDX est à 0 pour div
-    div ecx           ; r12 / ECX -> Quotient dans r12, reste dans EDX
-    mov r12d, edx      ; Le résultat (reste) est dans r12
+            inc r15d
+            cmp r15d, [width]
+            jl boucle_y
 
-    ;sauvegarder le nombre aléatoire dans y1
-    mov [y1], r12
 
-    ;affichage_y
-    mov rdi, affichage_y
-    mov rsi, r12
-    xor eax, eax
-    call printf
+        inc r14d
+        cmp r14d, [height]
+        jl boucle_x
 
+        jmp flush
 
 
-    ;nl
-    mov rdi, nl
-    xor eax, eax
-    call printf
 
-
-
-
-    ; trouver de quelle foyer le point est le plus proche
-    ; r15d est à 0 il servira de compteur
-
-    xor r15d, r15d ; indice du foyer
-    ; boucle qui parcourt les foyers et calcule la distance entre le points et les foyers
-
-    ; initialiser la distance à la plus grande valeur possible
-    mov dword [distance_min], 0xffffff
-
-    boucle_foyers_point:
-
-
-        ; calcul de la distance entre le point et le foyer
-        ; calcul de la distance en x
-        mov r12, [tableau_x_foyers + r15d * 4]
-        sub r12, [x1]
-        imul r12, r12
-        mov ecx, r12d
-
-        ; calcul de la distance en y
-        mov r12, [tableau_y_foyers + r15d * 4]
-        sub r12, [y1]
-        imul r12, r12
-        add ecx, r12d
-
-        ; calcul de la distance totale
-        mov r12d, ecx
-        call int_sqrt
-
-        ; si aex est inférieur à distance_min, on sauvegarde la distance et l'identifiant du foyer
-
-        cmp r12d,[distance_min]
-        jl sauvegarde_distance
-
-        suite_boucle_foyers_point:
-
-        ; incrementer le compteur
-        inc r15d
-
-        ; si le compteur est inférieur au nombre de foyers, on boucle
-
-
-
-
-        cmp r15d, [nb_foyers]
-        jl boucle_foyers_point
-
-
-
-    ; dessiner le point avec le foyer le plus proche
-    ; on a l'id du foyer le plus proche dans distance_min_id
-    ; on a les coordonnées du point dans x1 et y1
-    ; on a les coordonnées du foyer dans tableau_x_foyers[distance_min_id] et tableau_y_foyers[distance_min_id]
-
-    ; id et coordonnées du foyer le plus proche
-    ;affichage_indice
-    mov rdi, affichage_indice
-    mov rsi, [distance_min_id]
-    xor eax, eax
-    call printf
-
-
-
-    mov rbp, [distance_min_id]
-    ;affichage_x
-    mov rdi, affichage_x
-    mov rax, [tableau_x_foyers + rbp * 4]
-    mov rsi, rax
-    xor eax, eax
-    call printf
-
-
-
-    ;affichage_y
-    mov rdi, affichage_y
-    mov rax, [tableau_y_foyers + rbp * 4]
-    mov rsi, rax
-    xor eax, eax
-    call printf
-
-
-
-    ;nl
-    mov rdi, nl
-    xor eax, eax
-    call printf
-
-
-
-    ;affichage_distance
-    ;mov rdi, [distance_min]
-    ;mov rsi, r12
-    ;call printf
-    ;xor eax, eax
-
-
-
-    ;nl
-    mov rdi, nl
-    xor eax, eax
-    call printf
-
-
-
-    ;separation
-    mov rdi, separator
-    xor eax, eax
-    call printf
-
-
-
-
-   ;couleur de la ligne 4
-    mov rdi,qword[display_name]
-    mov rsi,qword[gc]
-    mov edx,0xFF00FF	; Couleur du crayon ; violet
-    call XSetForeground
-    ; récupérer les coordonnées du foyer le plus proche son id est dans distance_min_id
-    mov r12d, [distance_min_id]
-
-
-    ;si r12d est supérieur à 399, on affiche un message d'erreur
-    cmp r12d, [nb_foyers]
-    jg erreur
-
-    
-
-    mov eax, [tableau_x_foyers + r12d * 4]
-    mov dword[x2], eax
-    mov eax, [tableau_y_foyers + r12d * 4]
-    mov dword[y2], eax
-
-    ; dessin de la ligne 4
-    mov rdi,qword[display_name]
-    mov rsi,qword[window]
-    mov rdx,qword[gc]
-    mov ecx,dword[x1]	; coordonnée source en x
-    mov r8d,dword[y1]	; coordonnée source en y
-    mov r9d,dword[x2]	; coordonnée destination en x
-    push qword[y2]		; coordonnée destination en y
-    call XDrawLine
-
-
-
-    ; Incrementer le compteur (indice du point)
-    inc r14
-
-    ; Si le compteur est inférieur au nombre de points, on boucle
-
-    cmp r14, 10000
-    jl boucle_points
-    jmp flush
 
 
 
 sauvegarde_distance:
 
 
-    ; afficher de affichage_dist_l_min
-    ;mov rdi, affichage_dist_l_min
-    ;mov rsi, r12
-    ;mov rdx, [distance_min]
-    ;xor eax, eax
-    ;call printf
-
-
-
-    ;affichage de l'id "distance_min_id"
-    ;mov rdi, affichage_indice
-    ;mov rsi, r15
-    ;xor eax, eax
-    ;call printf
-
-
     
     ; sauvegarder la distance et l'identifiant du foyer
     mov [distance_min], r12
-    mov [distance_min_id], r15d
+    mov [distance_min_id], r13
 
-    jmp suite_boucle_foyers_point
+
+    jmp suit_boucle_foyers_enum
+
 
 ; ############################
 ; # END DRAWING ZONE         #
