@@ -45,7 +45,6 @@ gc:             resq 1
 distance_min:   resd 1
 distance_min_id:resd 1
 nb_points:      resd 1
-nb_foyers:      resd 1
 tableau_x_foyers: resd 800
 tableau_y_foyers: resd 800
 tableau_color_foyers: resd 800
@@ -56,30 +55,22 @@ section .data
 
 ; Format strings
 
-affichage_ligne db " ligne de %d;%d a %d;%d ", 10 , 0 
+
 affichage_indice db "Indice : %d", 10, 0 ; Format string for printf
-affichage_indice_point db "Indice_pts : %d", 10, 0 ; Format string for printf
-affichage_distance db "Distance : %d", 10, 0 ; Format string for printf
-affichage_distance_min db "Distance min : %d", 10, 0 ; Format string for printf
-affichage_x db "x : %d", 10, 0 ; Format string for printf
-affichage_y db "y : %d", 10, 0 ; Format string for printf
 error_message db "Erreur : indice hors limites ou accès invalide.", 0xA, 0  ; Message d'erreur avec saut de ligne
-dubug_print_2 db "BEGIN GENERATION OF FOYERS", 10 , 0
-dubug_print_3 db "END GENERATION OF FOYERS", 10 , 0
-dubug_print_4 db "BEGIN DRAWING ZONE", 10 , 0
-dubug_print_5 db "END DRAWING ZONE", 10 , 0
-nb_foyers_str db "Number of foyers: %d", 10, 0 ; Format string for printf (%d for integer, 10 for newline)
-nl db 10, 0 ; Newline character
-separator db "--------------------------------", 10, 0 ; Separator for debug messages
+
 event:          times 24 dq 0
 
-width          dd 800
-height         dd 800
 
 x1:             dd 0
 x2:             dd 0
 y1:             dd 0
 y2:             dd 0
+colors         dd 0x0ebeff, 0x29b0f7, 0x44a2ee, 0x5f94e5, 0x7a86dc, 0x9578d3, 0xb06ac9, 0xcb5cb0, 0xe64e97, 0xff4080
+nb_colors      dd 10
+nb_foyers      dd 80
+width          dd 800
+height         dd 800
 
 section .text
 
@@ -157,19 +148,6 @@ foyers:
 
     cmp     byte [drawing_done], 1
     je      boucle ; If drawing is done, skip the drawing process
-    ;mov rdi, dubug_print_2   ; printf "PROGRAMME PRINCIPAL"
-    ;call printf
-    ;xor eax, eax
-
-
-    ; Sauvegarder le nombre aléatoire
-    mov dword [nb_foyers], 80
-    ; Afficher le nombre de foyers dans le terminal
-    mov rdi, nb_foyers_str  
-    mov rsi, [nb_foyers] 
-    call printf
-    xor eax, eax
-
 
 
     ; r14 est à 0 il servira de compteur
@@ -177,75 +155,30 @@ foyers:
 
     boucle_foyers:
 
-        ;affichage_indice_point
-        mov rdi, affichage_indice
-        mov rsi, r14
-        call printf
-        xor eax, eax
-
-
-
-        ; Lire l'horodatage avec RDTSC
-        rdtsc
-        call int_sqrt
-        ; r12 contient la partie basse de l'horodatage
-        ; Prendre le reste de la division par 401 pour limiter à [0, 400]
-        mov ecx, [width]
-        xor edx, edx      ; EDX est à 0 pour div
-        div ecx           ; r12 / ECX -> Quotient dans r12, reste dans EDX
-        mov r12d, edx      ; Le résultat (reste) est dans r12
+        mov ecx, [width] 
+        call generate_random
 
         ; Sauvegarder le nombre aléatoire
         mov [tableau_x_foyers + r14 * 4], r12
 
-        ; affichage_x
-        mov rdi, affichage_x
-        mov rsi, r12
-        call printf
-        xor eax, eax
-
-
-
-        ; Lire l'horodatage avec RDTSC
-        rdtsc
-        ; r12 contient la partie basse de l'horodatage
-        ; Prendre le reste de la division par 401 pour limiter à [0, 400]
-        mov ecx, [height]
-        xor edx, edx      ; EDX est à 0 pour div
-        div ecx           ; r12 / ECX -> Quotient dans r12, reste dans EDX
-        mov r12d, edx      ; Le résultat (reste) est dans r12
+        mov ecx, [height] 
+        call generate_random
 
         ; Sauvegarder le nombre aléatoire
         mov [tableau_y_foyers + r14 * 4], r12
 
-        mov rdi, affichage_y
-        mov rsi, r12
-        call printf
-        xor eax, eax
-
-
-
-        mov rdi, nl
-        call printf
-        xor eax, eax
 
         ;generer une couleur aleatoire
         ;choisir un nombre entre 0 et nb_colors-1
-        mov r12, 0xFFFFFF
-        rdtsc
-        xor rdx, rdx
-        div r12
-        mov r12, rdx
+        mov ecx, [nb_colors]
+        call generate_random
 
         ;sauvegarder la couleur
+        mov r12d, [colors + r12 * 4]
+
+
+
         mov [tableau_color_foyers + r14 * 4], r12d
-        
-
-
-        mov rdi, nl
-        call printf
-        xor eax, eax
-
 
 
         ; Incrémenter le compteur
@@ -254,16 +187,10 @@ foyers:
         ; Si le compteur est inférieur au nombre de foyers, on boucle
         cmp r14d, [nb_foyers]
         jl boucle_foyers
-        ;dec r14d
-        ;mov [nb_foyers], r14d
 
 ;#########################################
 ;# END GENERATION OF FOYERS              #
 ;#########################################
-    mov rdi, separator
-    call printf
-    xor eax, eax
-
 
 ;#########################################
 ;# BEGIN DRAWING ZONE                    #
@@ -419,3 +346,19 @@ erreur:
     xor     eax, eax
     call    printf                     ; Afficher l'erreur
     jmp     closeDisplay              ; Aller à la fin pour éviter d'autres instructions
+
+
+generate_random:
+
+    rdrand r12d         ; Attempt to generate a random number
+
+    ; Now r12d contains a valid random number between 0 and 65535 (2^16 - 1)
+    ; To limit this to 0-100, use modulo operation
+    xor edx, edx        ; Clear edx for division
+    mov eax, r12d       ; Copy random number to eax
+    div ecx             ; Divide eax by ecx, remainder in edx
+
+    ; put edx in r12d
+    mov r12d, edx
+
+    ret
