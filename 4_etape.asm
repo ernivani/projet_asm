@@ -80,8 +80,6 @@ x1:             dd 0
 x2:             dd 0
 y1:             dd 0
 y2:             dd 0
-colors         dd 0x0ebeff, 0x29b0f7, 0x44a2ee, 0x5f94e5, 0x7a86dc, 0x9578d3, 0xb06ac9, 0xcb5cb0, 0xe64e97, 0xff4080
-nb_colors      dd 10
 
 section .text
 
@@ -353,13 +351,10 @@ foyers:
 
 
 sauvegarde_distance:
-
-
     
     ; sauvegarder la distance et l'identifiant du foyer
     mov [distance_min], r12
     mov [distance_min_id], r13
-
 
     jmp suit_boucle_foyers_enum
 
