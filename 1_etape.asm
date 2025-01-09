@@ -76,20 +76,37 @@ section .text
 
 main:
     mov     byte [drawing_done], 0
-    mov     rdi,0
-    xor     rax, rax
+    
+    ; Save registers before printf
+    push    rbp
+    mov     rbp, rsp
+    
+    ; Get display name
+    xor     rdi, rdi          ; NULL for default display
+    call    XDisplayName
+    
+    ; Print display name
+    test    rax, rax          ; Check if display name is NULL
+    jz      closeDisplay
 
-    mov     qword[display_name],rax	; rax=nom du display
-
-    call    XOpenDisplay	; Création de display
-
-
-    ; display_name structure
-    ; screen = DefaultScreen(display_name);
+    ; Try to open display
+    xor     rdi, rdi          ; NULL for default display
+    call    XOpenDisplay
+    test    rax, rax          ; Check if display opened successfully
+    jz      closeDisplay
+    
+    ; Display opened successfully
+    mov     [display_name], rax
+    
+    ; Restore stack frame
+    mov     rsp, rbp
+    pop     rbp
+    
+    ; Continue with the rest of your code
     mov     [display_name],rax
     mov     eax,dword[rax+0xe0]
     mov     dword[screen],eax
-
+    
     mov rdi,qword[display_name]
     mov esi,dword[screen]
     call XRootWindow
@@ -116,15 +133,27 @@ main:
     mov rsi,qword[window]
     call XMapWindow
 
-    mov rsi,qword[window]
-    mov rdx,0
-    mov rcx,0
+    ; Create graphics context with proper error checking
+    mov rdi, qword[display_name]
+    test rdi, rdi
+    jz closeDisplay
+    
+    mov rsi, qword[window]
+    test rsi, rsi
+    jz closeDisplay
+    
+    xor rdx, rdx        ; No mask
+    xor rcx, rcx        ; No values
     call XCreateGC
-    mov qword[gc],rax
-
+    test rax, rax       ; Check if GC creation failed
+    jz closeDisplay
+    
+    mov qword[gc], rax
 
 boucle: ; Event handling loop
     mov     rdi, qword[display_name]
+    cmp     rdi, 0              ; Check if display is NULL
+    je      closeDisplay        ; Exit if display is NULL
     mov     rsi, event
     call    XNextEvent
 
@@ -271,23 +300,67 @@ boucle_points:
 
     
 
-    mov eax, [tableau_x_foyers + r12d * 4]
+    mov r12d, [distance_min_id]
+    cmp r12d, [nb_foyers]       ; Check if index is within bounds
+    jae erreur                  ; Jump if above or equal to nb_foyers
+    
+    ; Calculate array offset safely
+    imul r12d, 4                ; Multiply index by 4 (size of dword)
+    mov eax, [tableau_x_foyers + r12]
     mov dword[x2], eax
-    mov eax, [tableau_y_foyers + r12d * 4]
+    mov eax, [tableau_y_foyers + r12]
     mov dword[y2], eax
 
     ; dessin de la ligne 4
-    mov rdi,qword[display_name]
-    mov rsi,qword[window]
-    mov rdx,qword[gc]
-    mov ecx,dword[x1]	; coordonnée source en x
-    mov r8d,dword[y1]	; coordonnée source en y
-    mov r9d,dword[x2]	; coordonnée destination en x
-    push qword[y2]		; coordonnée destination en y
+    mov rdi, qword[display_name]  ; display
+    test rdi, rdi                 ; verify display is not null
+    jz closeDisplay
+    
+    mov rsi,qword[window]        ; window
+    test rsi, rsi                 ; verify window is not null
+    jz closeDisplay
+    
+    mov rdx,qword[gc]           ; graphics context
+    test rdx, rdx                ; verify gc is not null
+    jz closeDisplay
+    
+    ; Align stack on 16-byte boundary before the call
+    push rbp
+    mov rbp, rsp
+    and rsp, -16                 ; Align stack
+    
+    mov ecx,dword[x1]          ; coordonnée source en x
+    mov r8d,dword[y1]          ; coordonnée source en y
+    mov r9d,dword[x2]          ; coordonnée destination en x
+    sub rsp, 16                 ; Allocate stack space for y2
+    mov eax, dword[y2]
+    mov [rsp], rax              ; Push y2 value
+    
+    ; Before XDrawLine, add debug print
+    push rax
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push r8
+    push r9
+
+    
+    pop r9
+    pop r8
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rax
+    
     call XDrawLine
-
-
-
+    
+    ; Restore stack
+    mov rsp, rbp
+    pop rbp
+    
+    ; Continue with the rest of your code
     ; Incrementer le compteur (indice du point)
     inc r14
 
