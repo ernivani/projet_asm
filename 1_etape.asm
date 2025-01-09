@@ -216,23 +216,15 @@ boucle_points:
 
     boucle_foyers_point:
 
-
         ; calcul de la distance entre le point et le foyer
-        ; calcul de la distance en x
-        mov r12, [tableau_x_foyers + r15d * 4]
-        sub r12, [x1]
-        imul r12, r12
-        mov ecx, r12d
 
-        ; calcul de la distance en y
-        mov r12, [tableau_y_foyers + r15d * 4]
-        sub r12, [y1]
-        imul r12, r12
-        add ecx, r12d
-
-        ; calcul de la distance totale
-        mov r12d, ecx
-        call int_sqrt
+        ; récupérer les coordonnées du foyer
+        ; et les stocker dans rcx et rdx
+        mov rdi, [tableau_x_foyers + r15d * 4]
+        mov rsi, [tableau_y_foyers + r15d * 4]
+        mov rdx, [x1]
+        mov rcx, [y1]
+        call calc_distance
 
         ; si aex est inférieur à distance_min, on sauvegarde la distance et l'identifiant du foyer
 
@@ -377,16 +369,48 @@ erreur:
     jmp     closeDisplay              ; Aller à la fin pour éviter d'autres instructions
 
 generate_random:
+    ; Inputs:
+    ; ecx - maximum value
+    ; Output:
+    ; r12 - random number between 0 and r12-1
 
-    rdrand r12d         ; Attempt to generate a random number
+    rdrand r12d         ; genere un nombre aléatoire
 
-    ; Now r12d contains a valid random number between 0 and 65535 (2^16 - 1)
-    ; To limit this to 0-100, use modulo operation
-    xor edx, edx        ; Clear edx for division
-    mov eax, r12d       ; Copy random number to eax
-    div ecx             ; Divide eax by ecx, remainder in edx
+    ; r12d contient un nombre aléatoire
+    ; modulo avec ecx pour obtenir un nombre entre 0 et ecx-1
+    xor edx, edx        ; Clear edx
+    mov eax, r12d       
+    div ecx             ; eax = eax % ecx
 
-    ; put edx in r12d
+    ; retourne le nombre aléatoire dans r12d
     mov r12d, edx
+
+    ret
+
+; fonction calcule la distance entre deux points
+calc_distance:
+    ; Inputs:
+    ; rdi - x1 (coordinate of the first point)
+    ; rsi - y1 (coordinate of the first point)
+    ; rdx - x2 (coordinate of the second point)
+    ; rcx - y2 (coordinate of the second point)
+    ; Output:
+    ; r12d - distance between the two points
+
+    ; calcul de la distance en x
+    mov r12, rdi
+    sub r12, rdx
+    imul r12, r12
+    mov eax, r12d
+
+    ; calcul de la distance en y
+    mov r12, rsi
+    sub r12, rcx
+    imul r12, r12
+    add eax, r12d
+
+    ; calcul de la distance totale
+    mov r12d, eax
+    call int_sqrt
 
     ret

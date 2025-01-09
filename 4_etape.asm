@@ -212,26 +212,20 @@ foyers:
                 ; sauvegarder les coordonnées du foyer le plus proche du point r14, r15
                 ; sauvegarder la distance entre le point r14, r15 et le foyer le plus proche
 
-                ; calcul de la distance entre le point et le foyer
-                ; calcul de la distance en x
-                mov r12, [tableau_x_foyers + r13 * 4]
-                sub r12, r14
-                imul r12, r12
-                mov ecx, r12d
 
-                ; calcul de la distance en y
-                mov r12, [tableau_y_foyers + r13 * 4]
-                sub r12, r15
-                imul r12, r12
-                add ecx, r12d
+                ; récupérer les coordonnées du point
+                mov rdi, r14
+                mov rsi, r15
+                ; récupérer les coordonnées du foyer
+                mov rdx, [tableau_x_foyers + r13 * 4]
+                mov rcx, [tableau_y_foyers + r13 * 4]
 
-                ; calcul de la distance totale
-                mov r12d, ecx
-                call int_sqrt
+                ; appel de la fonction calc_distance
+                ; retourne la distance entre le point et le foyer dans r12d
+                call calc_distance
 
+                
                 ; si r12d est inférieur à distance_min, on sauvegarde la distance et l'identifiant du foyer
-
-
                 cmp r12d,[distance_min]
                 jl sauvegarde_distance
                 suit_boucle_foyers_enum:
@@ -259,8 +253,6 @@ foyers:
 
                 
 
-
-
             inc r15d
             cmp r15d, [width]
             jl boucle_y
@@ -271,10 +263,6 @@ foyers:
         jl boucle_x
 
         jmp flush
-
-
-
-
 
 
 sauvegarde_distance:
@@ -306,13 +294,6 @@ closeDisplay:
     xor     rdi, rdi
     call    exit
 
-; Function: int_sqrt
-; Description: Computes the integer square root of a non-negative integer.
-; Input: r12 contains the input number (unsigned).
-; Output: r12 contains the integer square root.
-
-section .text
-global int_sqrt
 
 int_sqrt:
     ; Calcul de la racine carrée entière de r12
@@ -320,7 +301,7 @@ int_sqrt:
     ; Sortie : r12
 
     mov ecx, 0          ; compteur
-    mov ebx, r12d        ; valeur initiale
+    mov ebx, r12d       ; valeur initiale
 
 sqrt_loop:
     inc ecx             ; incrémenter le compteur
@@ -332,7 +313,7 @@ sqrt_loop:
 
 sqrt_done:
     dec ecx             ; décrémenter le compteur pour obtenir la racine carrée
-    mov r12d, ecx        ; stocker le résultat dans r12
+    mov r12d, ecx       ; stocker le résultat dans r12
     ret
 
 erreur:
@@ -345,20 +326,51 @@ erreur:
     mov     rdi, error_message         ; Préparer un message d'erreur
     xor     eax, eax
     call    printf                     ; Afficher l'erreur
-    jmp     closeDisplay              ; Aller à la fin pour éviter d'autres instructions
+    jmp     closeDisplay               ; Aller à la fin pour éviter d'autres instructions
 
 
 generate_random:
+    ; Inputs:
+    ; ecx - maximum value
+    ; Output:
+    ; r12 - random number between 0 and r12-1
 
-    rdrand r12d         ; Attempt to generate a random number
+    rdrand r12d         ; genere un nombre aléatoire
 
-    ; Now r12d contains a valid random number between 0 and 65535 (2^16 - 1)
-    ; To limit this to 0-100, use modulo operation
-    xor edx, edx        ; Clear edx for division
-    mov eax, r12d       ; Copy random number to eax
-    div ecx             ; Divide eax by ecx, remainder in edx
+    ; r12d contient un nombre aléatoire
+    ; modulo avec ecx pour obtenir un nombre entre 0 et ecx-1
+    xor edx, edx        ; Clear edx
+    mov eax, r12d       
+    div ecx             ; eax = eax % ecx
 
-    ; put edx in r12d
+    ; retourne le nombre aléatoire dans r12d
     mov r12d, edx
+
+    ret
+
+calc_distance:
+    ; Inputs:
+    ; rdi - x1 (coordinate of the first point)
+    ; rsi - y1 (coordinate of the first point)
+    ; rdx - x2 (coordinate of the second point)
+    ; rcx - y2 (coordinate of the second point)
+    ; Output:
+    ; r12d - distance between the two points
+
+    ; calcul de la distance en x
+    mov r12, rdi
+    sub r12, rdx
+    imul r12, r12
+    mov eax, r12d
+
+    ; calcul de la distance en y
+    mov r12, rsi
+    sub r12, rcx
+    imul r12, r12
+    add eax, r12d
+
+    ; calcul de la distance totale
+    mov r12d, eax
+    call int_sqrt
 
     ret
