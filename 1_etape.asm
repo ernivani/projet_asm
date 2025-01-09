@@ -301,7 +301,7 @@ boucle_points:
 
     ; Si le compteur est inférieur au nombre de points, on boucle
 
-    cmp r14, [nb_points]
+    cmp r14d, [nb_points]
     jl boucle_points
     jmp flush
 

@@ -249,8 +249,7 @@ boucle_points:
         mov r12d, ecx
         call int_sqrt
 
-        ; si aex est inférieur à distance_min, on sauvegarde la distance et l'identifiant du foyer
-
+        ; si r12d est inférieur à distance_min, on sauvegarde la distance et l'identifiant du foyer
         cmp r12d,[distance_min]
         jl sauvegarde_distance
 
@@ -326,7 +325,7 @@ boucle_points:
 
     ; Si le compteur est inférieur au nombre de points, on boucle
 
-    cmp r14, [nb_points]
+    cmp r14d, [nb_points]
     jl boucle_points
     jmp flush
 
