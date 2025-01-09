@@ -79,37 +79,20 @@ section .text
 
 main:
     mov     byte [drawing_done], 0
-    
-    ; Save registers before printf
-    push    rbp
-    mov     rbp, rsp
-    
-    ; Get display name
-    xor     rdi, rdi          ; NULL for default display
-    call    XDisplayName
-    
-    ; Print display name
-    test    rax, rax          ; Check if display name is NULL
-    jz      closeDisplay
+    mov     rdi,0
+    xor     rax, rax
 
-    ; Try to open display
-    xor     rdi, rdi          ; NULL for default display
-    call    XOpenDisplay
-    test    rax, rax          ; Check if display opened successfully
-    jz      closeDisplay
-    
-    ; Display opened successfully
-    mov     [display_name], rax
-    
-    ; Restore stack frame
-    mov     rsp, rbp
-    pop     rbp
-    
-    ; Continue with the rest of your code
+    mov     qword[display_name],rax	; rax=nom du display
+
+    call    XOpenDisplay	; Création de display
+
+
+    ; display_name structure
+    ; screen = DefaultScreen(display_name);
     mov     [display_name],rax
     mov     eax,dword[rax+0xe0]
     mov     dword[screen],eax
-    
+
     mov rdi,qword[display_name]
     mov esi,dword[screen]
     call XRootWindow
@@ -121,7 +104,7 @@ main:
     mov rcx,10
     mov r8,[width]	; largeur
     mov r9,[height]	; hauteur
-    push 0x000000	; background  0xRRGGBB
+    push 0xFFFFFF	; background  0xRRGGBB
     push 0x00FF00
     push 1
     call XCreateSimpleWindow
@@ -136,22 +119,11 @@ main:
     mov rsi,qword[window]
     call XMapWindow
 
-    ; Create graphics context with proper error checking
-    mov rdi, qword[display_name]
-    test rdi, rdi
-    jz closeDisplay
-    
-    mov rsi, qword[window]
-    test rsi, rsi
-    jz closeDisplay
-    
-    xor rdx, rdx        ; No mask
-    xor rcx, rcx        ; No values
+    mov rsi,qword[window]
+    mov rdx,0
+    mov rcx,0
     call XCreateGC
-    test rax, rax       ; Check if GC creation failed
-    jz closeDisplay
-    
-    mov qword[gc], rax
+    mov qword[gc],rax
 
 
 boucle: ; Event handling loop

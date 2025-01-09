@@ -44,10 +44,8 @@ gc:             resq 1
 
 distance_min:   resd 1
 distance_min_id:resd 1
-nb_points:      resd 1
 tableau_x_foyers: resd 800
 tableau_y_foyers: resd 800
-tableau_color_foyers: resd 800
 drawing_done:   resb 1 ; Flag to indicate if drawing is done
 
 
@@ -57,10 +55,10 @@ section .data
 
 
 affichage_indice db "Indice : %d", 10, 0 ; Format string for printf
+
 error_message db "Erreur : indice hors limites ou accès invalide.", 0xA, 0  ; Message d'erreur avec saut de ligne
 
 event:          times 24 dq 0
-
 
 x1:             dd 0
 x2:             dd 0
@@ -68,6 +66,7 @@ y1:             dd 0
 y2:             dd 0
 colors         dd 0x0ebeff, 0x29b0f7, 0x44a2ee, 0x5f94e5, 0x7a86dc, 0x9578d3, 0xb06ac9, 0xcb5cb0, 0xe64e97, 0xff4080
 nb_colors      dd 10
+nb_points      dd 100000
 nb_foyers      dd 80
 width          dd 800
 height         dd 800
@@ -80,37 +79,20 @@ section .text
 
 main:
     mov     byte [drawing_done], 0
-    
-    ; Save registers before printf
-    push    rbp
-    mov     rbp, rsp
-    
-    ; Get display name
-    xor     rdi, rdi          ; NULL for default display
-    call    XDisplayName
-    
-    ; Print display name
-    test    rax, rax          ; Check if display name is NULL
-    jz      closeDisplay
+    mov     rdi,0
+    xor     rax, rax
 
-    ; Try to open display
-    xor     rdi, rdi          ; NULL for default display
-    call    XOpenDisplay
-    test    rax, rax          ; Check if display opened successfully
-    jz      closeDisplay
-    
-    ; Display opened successfully
-    mov     [display_name], rax
-    
-    ; Restore stack frame
-    mov     rsp, rbp
-    pop     rbp
-    
-    ; Continue with the rest of your code
+    mov     qword[display_name],rax	; rax=nom du display
+
+    call    XOpenDisplay	; Création de display
+
+
+    ; display_name structure
+    ; screen = DefaultScreen(display_name);
     mov     [display_name],rax
     mov     eax,dword[rax+0xe0]
     mov     dword[screen],eax
-    
+
     mov rdi,qword[display_name]
     mov esi,dword[screen]
     call XRootWindow
@@ -122,7 +104,7 @@ main:
     mov rcx,10
     mov r8,[width]	; largeur
     mov r9,[height]	; hauteur
-    push 0x000000	; background  0xRRGGBB
+    push 0xFFFFFF	; background  0xRRGGBB
     push 0x00FF00
     push 1
     call XCreateSimpleWindow
@@ -137,22 +119,11 @@ main:
     mov rsi,qword[window]
     call XMapWindow
 
-    ; Create graphics context with proper error checking
-    mov rdi, qword[display_name]
-    test rdi, rdi
-    jz closeDisplay
-    
-    mov rsi, qword[window]
-    test rsi, rsi
-    jz closeDisplay
-    
-    xor rdx, rdx        ; No mask
-    xor rcx, rcx        ; No values
+    mov rsi,qword[window]
+    mov rdx,0
+    mov rcx,0
     call XCreateGC
-    test rax, rax       ; Check if GC creation failed
-    jz closeDisplay
-    
-    mov qword[gc], rax
+    mov qword[gc],rax
 
 
 boucle: ; Event handling loop
@@ -178,10 +149,15 @@ foyers:
     je      boucle ; If drawing is done, skip the drawing process
 
 
+    
+
+
+
     ; r14 est à 0 il servira de compteur
     xor r14, r14
 
     boucle_foyers:
+
 
         mov ecx, [width] 
         call generate_random
@@ -196,25 +172,14 @@ foyers:
         mov [tableau_y_foyers + r14 * 4], r12
 
 
-        ;generer une couleur aleatoire
-        ;choisir un nombre entre 0 et nb_colors-1
-        mov ecx, [nb_colors]
-        call generate_random
-
-        ;sauvegarder la couleur
-        mov r12d, [colors + r12 * 4]
-
-
-
-        mov [tableau_color_foyers + r14 * 4], r12d
-
-
         ; Incrémenter le compteur
         inc r14
 
         ; Si le compteur est inférieur au nombre de foyers, on boucle
         cmp r14d, [nb_foyers]
         jl boucle_foyers
+        ;dec r14d
+        ;mov [nb_foyers], r14d
 
 ;#########################################
 ;# END GENERATION OF FOYERS              #
@@ -224,83 +189,146 @@ foyers:
 ;# BEGIN DRAWING ZONE                    #
 ;#########################################
 
-    xor r13, r13 ; r13 est à 0 il servira de compteur pour les foyers
-    xor r14, r14 ; r14 est à 0 il servira de compteur pour x
-    xor r15, r15 ; r15 est à 0 il servira de compteur pour y
-    boucle_x:
-        xor r15, r15 ; r15 est à 0 il servira de compteur pour y
 
-        boucle_y:   
-            xor r13, r13 ; r13 est à 0 il servira de compteur pour les foyers
-            mov dword [distance_min], 0xffffff
+    xor r14, r14
 
-            boucle_foyers_enum:
+    jmp boucle_points
 
-                ; énumérer les foyers
-                ; sauvegarder les coordonnées du foyer le plus proche du point r14, r15
-                ; sauvegarder la distance entre le point r14, r15 et le foyer le plus proche
+; generation aléatoire de 10000 points
+; pas besoin de sauvegarder les points il seron traités un à un
+; r14 a 0 il servira de compteur
+
+boucle_points:
 
 
-                ; récupérer les coordonnées du point
-                mov rdi, r14
-                mov rsi, r15
-                ; récupérer les coordonnées du foyer
-                mov rdx, [tableau_x_foyers + r13 * 4]
-                mov rcx, [tableau_y_foyers + r13 * 4]
-
-                ; appel de la fonction calc_distance
-                ; retourne la distance entre le point et le foyer dans r12d
-                call calc_distance
-
-                
-                ; si r12d est inférieur à distance_min, on sauvegarde la distance et l'identifiant du foyer
-                cmp r12d,[distance_min]
-                jl sauvegarde_distance
-                suit_boucle_foyers_enum:
 
 
-                inc r13
-                cmp r13d, [nb_foyers]
-                jl boucle_foyers_enum
+
+    mov ecx, [width]
+    call generate_random
 
 
-                ;couleur du point
-                xor r13, r13
-                mov r13d ,[distance_min_id]
+    ; Sauvegarder le nombre aléatoire dans x1
+    mov [x1], r12d
 
-                mov rdi,qword[display_name]
-                mov rsi,qword[gc]
-                mov edx,[tableau_color_foyers + r13d * 4]
-                call XSetForeground
-                mov rdi,qword[display_name]
-                mov rsi,qword[window]
-                mov rdx,qword[gc]
-                mov rcx,r15	; coordonnée en x
-                mov r8,r14	; coordonnée en y
-                call XDrawPoint
+    mov ecx, [height]
+    call generate_random
 
-                
-
-            inc r15d
-            cmp r15d, [width]
-            jl boucle_y
+    ;sauvegarder le nombre aléatoire dans y1
+    mov [y1], r12
 
 
-        inc r14d
-        cmp r14d, [height]
-        jl boucle_x
 
-        jmp flush
+
+    ; trouver de quelle foyer le point est le plus proche
+    ; r15d est à 0 il servira de compteur
+
+    xor r15d, r15d ; indice du foyer
+    ; boucle qui parcourt les foyers et calcule la distance entre le points et les foyers
+
+    ; initialiser la distance à la plus grande valeur possible
+    mov dword [distance_min], 0xffffff
+
+    boucle_foyers_point:
+
+
+        ; récupérer les coordonnées du foyer
+        ; et les stocker dans rcx et rdx
+        mov rdi, [tableau_x_foyers + r15d * 4]
+        mov rsi, [tableau_y_foyers + r15d * 4]
+        mov rdx, [x1]
+        mov rcx, [y1]
+        call calc_distance
+
+        ; si r12d est inférieur à distance_min, on sauvegarde la distance et l'identifiant du foyer
+        cmp r12d,[distance_min]
+        jl sauvegarde_distance
+
+        suite_boucle_foyers_point:
+
+        ; incrementer le compteur
+        inc r15d
+
+        ; si le compteur est inférieur au nombre de foyers, on boucle
+
+
+
+
+        cmp r15d, [nb_foyers]
+        jl boucle_foyers_point
+
+
+
+    ; dessiner le point avec le foyer le plus proche
+    ; on a l'id du foyer le plus proche dans distance_min_id
+    ; on a les coordonnées du point dans x1 et y1
+    ; on a les coordonnées du foyer dans tableau_x_foyers[distance_min_id] et tableau_y_foyers[distance_min_id]
+
+    ; id et coordonnées du foyer le plus proche
+
+
+
+    mov rbp, [distance_min_id]
+
+    ;choisir un nombre entre 0 et nb_colors-1
+    mov ecx, [nb_colors]
+    call generate_random
+
+    ;sauvegarder la couleur
+
+    ; couleur de la ligne 4
+    mov rdi, qword [display_name]
+    mov rsi, qword [gc]
+    mov edx, [colors + r12 * 4] ; Couleur du crayon
+
+    call XSetForeground
+
+    ; récupérer les coordonnées du foyer le plus proche son id est dans distance_min_id
+    mov r12d, [distance_min_id]
+
+
+    ;si r12d est supérieur à 399, on affiche un message d'erreur
+    cmp r12d, [nb_foyers]
+    jg erreur
+
+
+
+
+    mov eax, [tableau_x_foyers + r12d * 4]
+    mov dword[x2], eax
+    mov eax, [tableau_y_foyers + r12d * 4]
+    mov dword[y2], eax
+
+    ; dessin de la ligne 4
+    mov rdi,qword[display_name]
+    mov rsi,qword[window]
+    mov rdx,qword[gc]
+    mov ecx,dword[x1]	; coordonnée source en x
+    mov r8d,dword[y1]	; coordonnée source en y
+    mov r9d,dword[x2]	; coordonnée destination en x
+    push qword[y2]		; coordonnée destination en y
+    call XDrawLine
+
+
+
+    ; Incrementer le compteur (indice du point)
+    inc r14
+
+    ; Si le compteur est inférieur au nombre de points, on boucle
+
+    cmp r14d, [nb_points]
+    jl boucle_points
+    jmp flush
+
 
 
 sauvegarde_distance:
-    
+
     ; sauvegarder la distance et l'identifiant du foyer
     mov [distance_min], r12
-    mov [distance_min_id], r13
+    mov [distance_min_id], r15d
 
-    jmp suit_boucle_foyers_enum
-
+    jmp suite_boucle_foyers_point
 
 ; ############################
 ; # END DRAWING ZONE         #
@@ -322,6 +350,13 @@ closeDisplay:
     xor     rdi, rdi
     call    exit
 
+; Function: int_sqrt
+; Description: Computes the integer square root of a non-negative integer.
+; Input: r12 contains the input number (unsigned).
+; Output: r12 contains the integer square root.
+
+section .text
+global int_sqrt
 
 int_sqrt:
     ; Calcul de la racine carrée entière de r12
@@ -329,7 +364,7 @@ int_sqrt:
     ; Sortie : r12
 
     mov ecx, 0          ; compteur
-    mov ebx, r12d       ; valeur initiale
+    mov ebx, r12d        ; valeur initiale
 
 sqrt_loop:
     inc ecx             ; incrémenter le compteur
@@ -341,7 +376,7 @@ sqrt_loop:
 
 sqrt_done:
     dec ecx             ; décrémenter le compteur pour obtenir la racine carrée
-    mov r12d, ecx       ; stocker le résultat dans r12
+    mov r12d, ecx        ; stocker le résultat dans r12
     ret
 
 erreur:
@@ -354,7 +389,7 @@ erreur:
     mov     rdi, error_message         ; Préparer un message d'erreur
     xor     eax, eax
     call    printf                     ; Afficher l'erreur
-    jmp     closeDisplay               ; Aller à la fin pour éviter d'autres instructions
+    jmp     closeDisplay              ; Aller à la fin pour éviter d'autres instructions
 
 
 generate_random:
