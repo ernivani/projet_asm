@@ -400,6 +400,10 @@ generate_random:
 
     rdrand r12d         ; genere un nombre aléatoire
 
+
+    ; check si le flag de carry est à 0
+    jnc generate_random
+
     ; r12d contient un nombre aléatoire
     ; modulo avec ecx pour obtenir un nombre entre 0 et ecx-1
     xor edx, edx        ; Clear edx
